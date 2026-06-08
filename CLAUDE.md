@@ -242,10 +242,22 @@ Ha egy `gmail_thread_id` már szerepel az `orders` táblában → egész thread 
 
 ---
 
+## Deployment
+
+- **GitHub:** https://github.com/kazonak-git/gmail-order-manager (private repo)
+- **Vercel:** https://gmail-order-manager.vercel.app (élő, működő)
+- **Google Cloud projekt:** "My First Project" — itt van az OAuth beállítva (NEM az "Order manager" projektben!)
+- **Test userek:** Google Cloud Console → My First Project → Google Auth Platform → Audience → Test users
+- **Env változók:** Vercelben be vannak állítva (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY, NEXTAUTH_SECRET, NEXTAUTH_URL)
+- **Új kód deploy:** git push origin main → Vercel automatikusan újrabuildelni
+
 ## Következő javítandó dolgok
 
-### 1. Excel export tesztelése (KÖZEPES)
+### 1. Tesztelői visszajelzések feldolgozása (MAGAS)
+Tesztelő meghívva, visszajelzés várható — funkciók, hibák, UX észrevételek.
+
+### 2. Excel export tesztelése (KÖZEPES)
 `/api/export` endpoint megvan, élőben még nem tesztelve Supabase adatokkal.
 
-### 2. Parser teljesítmény (ALACSONY)
+### 3. Parser teljesítmény (ALACSONY)
 100+ levélnél rate limit lehetséges — javasolt 10-es batch méret + retry logika.
