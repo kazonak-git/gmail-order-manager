@@ -2,26 +2,87 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: 120 20% 97%;
+    --foreground: 0 0% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 16%;
+    --primary: 123 22% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 123 30% 94%;
+    --secondary-foreground: 123 22% 35%;
+    --muted: 120 10% 94%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 123 30% 94%;
+    --accent-foreground: 123 22% 30%;
+    --destructive: 350 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 120 10% 90%;
+    --input: 120 10% 90%;
+    --ring: 123 22% 60%;
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 0 0% 10%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 14%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 14%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 123 22% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 123 15% 20%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 0 0% 18%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 123 15% 20%;
+    --accent-foreground: 0 0% 90%;
+    --destructive: 350 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 22%;
+    --input: 0 0% 22%;
+    --ring: 123 22% 60%;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* Email HTML tartalom megjelenítő */
+.email-html-content {
+  max-width: 100%;
+  overflow-x: auto;
+  word-break: break-word;
+}
+.email-html-content table {
+  max-width: 100%;
+  border-collapse: collapse;
+}
+.email-html-content img {
+  max-width: 100%;
+  height: auto;
+}
+.email-html-content a {
+  color: #7BB27E;
+  text-decoration: underline;
+}
+.email-html-content p,
+.email-html-content div {
+  margin-bottom: 0.25rem;
 }

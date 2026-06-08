@@ -34,3 +34,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Google OAuth secret (soha ne kerüljön gitbe!)
+client_secret*.json
+
+# Claude local config
+.claude/
