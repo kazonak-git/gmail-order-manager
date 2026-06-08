@@ -19,65 +19,127 @@ export interface GmailMessage {
   attachments: Attachment[];
 }
 
+// Könnyű ref, amit a messages.list ad vissza (id + threadId, tartalom nélkül)
+export interface GmailMessageRef {
+  id: string;
+  threadId: string;
+}
+
 const LOG = (...args: unknown[]) =>
   console.log("[GMAIL]", new Date().toISOString(), ...args);
 
-export async function fetchOrderEmails(
+const DETAIL_BATCH_SIZE = 10;
+const MAX_TOTAL_MESSAGES = 2000;
+
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Csak az üzenet ID-kat és thread ID-kat gyűjti össze lapozással.
+ * Gyors — nem tölt le email tartalmat.
+ */
+export async function listMessageRefs(
   accessToken: string,
   query: string,
-  maxResults = 50
+): Promise<GmailMessageRef[]> {
+  const gmail = getGmailClient(accessToken);
+
+  LOG("messages.list hívás (teljes lapozással) — q:", query);
+
+  const allRefs: GmailMessageRef[] = [];
+  let pageToken: string | undefined = undefined;
+  let pageNum = 0;
+
+  do {
+    pageNum++;
+    LOG(`Oldal #${pageNum} lekérése${pageToken ? " (pageToken: " + pageToken.slice(0, 8) + "...)" : ""}...`);
+
+    let listRes;
+    try {
+      listRes = await gmail.users.messages.list({
+        userId: "me",
+        q: query,
+        maxResults: 500,
+        ...(pageToken ? { pageToken } : {}),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const details = (err as { response?: { data?: unknown } })?.response?.data;
+      LOG("HIBA — messages.list sikertelen:", msg);
+      LOG("Részletek:", JSON.stringify(details ?? {}));
+      throw err;
+    }
+
+    const msgs = listRes.data.messages ?? [];
+    for (const m of msgs) {
+      if (m.id && m.threadId) {
+        allRefs.push({ id: m.id, threadId: m.threadId });
+      }
+    }
+    LOG(`Oldal #${pageNum}: ${msgs.length} üzenet | összesen eddig: ${allRefs.length} | resultSizeEstimate: ${listRes.data.resultSizeEstimate}`);
+
+    pageToken = listRes.data.nextPageToken ?? undefined;
+
+    if (allRefs.length >= MAX_TOTAL_MESSAGES) {
+      LOG(`Elérte a ${MAX_TOTAL_MESSAGES}-es korlátot — lapozás leállítva`);
+      break;
+    }
+  } while (pageToken);
+
+  LOG(`Összes üzenet ref összegyűjtve: ${allRefs.length}`);
+  return allRefs;
+}
+
+/**
+ * Adott ID-listához lekéri a teljes email tartalmat batch-ekben.
+ */
+export async function fetchEmailDetails(
+  accessToken: string,
+  refs: GmailMessageRef[],
 ): Promise<GmailMessage[]> {
   const gmail = getGmailClient(accessToken);
 
-  LOG("messages.list hívás — q:", query, "| maxResults:", maxResults);
+  if (refs.length === 0) return [];
 
-  let listRes;
-  try {
-    listRes = await gmail.users.messages.list({
-      userId: "me",
-      q: query,
-      maxResults,
-    });
-    LOG("messages.list HTTP státusz:", listRes.status);
-    LOG("Talált üzenetek száma:", listRes.data.messages?.length ?? 0, "| resultSizeEstimate:", listRes.data.resultSizeEstimate);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const details = (err as { response?: { data?: unknown } })?.response?.data;
-    LOG("HIBA — messages.list sikertelen:", msg);
-    LOG("Részletek:", JSON.stringify(details ?? {}));
-    throw err;
+  LOG(`Részletes lekérés batch-ekben (méret: ${DETAIL_BATCH_SIZE}), összesen: ${refs.length} levél...`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const detailed: any[] = [];
+
+  for (let i = 0; i < refs.length; i += DETAIL_BATCH_SIZE) {
+    const batch = refs.slice(i, i + DETAIL_BATCH_SIZE);
+    LOG(`Batch ${Math.floor(i / DETAIL_BATCH_SIZE) + 1}/${Math.ceil(refs.length / DETAIL_BATCH_SIZE)} (${batch.length} levél)...`);
+
+    try {
+      const batchResults = await Promise.all(
+        batch.map((m) =>
+          gmail.users.messages.get({
+            userId: "me",
+            id: m.id,
+            format: "full",
+          })
+        )
+      );
+      detailed.push(...batchResults);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      LOG("HIBA — messages.get batch sikertelen:", msg);
+      throw err;
+    }
+
+    if (i + DETAIL_BATCH_SIZE < refs.length) {
+      await sleep(100);
+    }
   }
 
-  const messages = listRes.data.messages ?? [];
-  if (messages.length === 0) {
-    LOG("A Gmail API üres listát adott vissza — nincs találat ezzel a lekérdezéssel.");
-    return [];
-  }
-
-  LOG(`${messages.length} levél részletes lekérése...`);
-  let detailed;
-  try {
-    detailed = await Promise.all(
-      messages.map((m) =>
-        gmail.users.messages.get({
-          userId: "me",
-          id: m.id!,
-          format: "full",
-        })
-      )
-    );
-    LOG(`${detailed.length} levél részletei sikeresen letöltve`);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    LOG("HIBA — messages.get sikertelen:", msg);
-    throw err;
-  }
+  LOG(`${detailed.length} levél részletei sikeresen letöltve`);
 
   return detailed.map((res) => {
     const msg = res.data;
     const headers = msg.payload?.headers ?? [];
     const get = (name: string) =>
-      headers.find((h) => h.name?.toLowerCase() === name)?.value ?? "";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      headers.find((h: any) => h.name?.toLowerCase() === name)?.value ?? "";
 
     const payload = msg.payload as MessagePart | undefined;
     const htmlBody = payload ? extractHtmlBody(payload) : "";
@@ -97,6 +159,20 @@ export async function fetchOrderEmails(
       attachments,
     };
   });
+}
+
+/**
+ * Visszafelé kompatibilis wrapper — egyben listáz és tölt le.
+ * Csak kis mennyiségű emailnél használd.
+ */
+export async function fetchOrderEmails(
+  accessToken: string,
+  query: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _maxResults = 50
+): Promise<GmailMessage[]> {
+  const refs = await listMessageRefs(accessToken, query);
+  return fetchEmailDetails(accessToken, refs);
 }
 
 type MessagePart = {
@@ -141,7 +217,6 @@ function extractAttachments(payload: MessagePart): Attachment[] {
   function walk(part: MessagePart) {
     const filename = part.filename;
     const attachmentId = part.body?.attachmentId;
-    // Csak valódi csatolmányok — inline CID képek kihagyása
     if (filename && attachmentId && filename.length > 0) {
       result.push({
         filename,

@@ -20,10 +20,14 @@ interface Props {
 export function SyncPanel({ recentLogs, syncFromDate }: Props) {
   const [fromDate, setFromDate] = useState<string>(syncFromDate ?? defaultFromDate());
   const [syncing, setSyncing] = useState(false);
+  const [progress, setProgress] = useState<{ rounds: number; orders_found: number } | null>(null);
   const [lastResult, setLastResult] = useState<{ emails_scanned: number; orders_found: number } | null>(null);
+
   async function handleSync() {
     setSyncing(true);
     setLastResult(null);
+    setProgress(null);
+
     try {
       // 1. Dátum mentése Supabase-be
       await fetch("/api/settings/filters", {
@@ -32,16 +36,32 @@ export function SyncPanel({ recentLogs, syncFromDate }: Props) {
         body: JSON.stringify({ sync_from_date: fromDate }),
       });
 
-      // 2. Szinkronizáció indítása
-      const res = await fetch("/api/gmail/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ syncFromDate: fromDate }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setLastResult(data);
-      toast.success(`Kész! ${data.orders_found} új rendelés mentve.`);
+      // 2. Szinkronizáció — ha van remaining, automatikusan folytatja
+      let totalOrders = 0;
+      let totalScanned = 0;
+      let rounds = 0;
+      let remaining = 1; // indul
+
+      while (remaining > 0) {
+        rounds++;
+        setProgress({ rounds, orders_found: totalOrders });
+
+        const res = await fetch("/api/gmail/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ syncFromDate: fromDate }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        totalOrders += data.orders_found ?? 0;
+        totalScanned = data.emails_scanned ?? totalScanned;
+        remaining = data.remaining ?? 0;
+      }
+
+      setLastResult({ emails_scanned: totalScanned, orders_found: totalOrders });
+      setProgress(null);
+      toast.success(`Kész! ${totalOrders} új rendelés mentve.`);
       window.location.href = "/";
     } catch (err: unknown) {
       toast.error(`Hiba: ${err instanceof Error ? err.message : "Ismeretlen hiba"}`);
@@ -109,7 +129,12 @@ export function SyncPanel({ recentLogs, syncFromDate }: Props) {
           style={{ background: "#7BB27E" }}
         >
           <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
-          {syncing ? "Szinkronizálás folyamatban..." : "Szinkronizáció indítása"}
+          {syncing
+            ? progress
+              ? `${progress.rounds}. kör — ${progress.orders_found} rendelés eddig...`
+              : "Szinkronizálás..."
+            : "Szinkronizáció indítása"
+          }
         </button>
 
         {lastResult && (

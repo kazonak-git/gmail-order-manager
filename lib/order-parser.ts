@@ -55,7 +55,10 @@ export function classifyEmailType(
 }
 
 export function parseOrderFromEmail(msg: GmailMessage): ParsedOrder {
-  const text = msg.body || msg.snippet;
+  // Limitáljuk a feldolgozott szöveget — a regex-ek csak az első 5000 karakteren futnak
+  // Ez megelőzi a katasztrofális backtracking-et nagy HTML emaileknél
+  const rawText = msg.body || msg.snippet;
+  const text = rawText.slice(0, 5000);
 
   return {
     gmail_message_id: msg.id,
@@ -127,8 +130,8 @@ function extractCustomerEmail(text: string, from: string): string | undefined {
 
 function extractTotalAmount(text: string): number | undefined {
   const patterns = [
-    /(?:végösszeg|total|összesen|grand total|fizetendő)[:\s]*([0-9\s.,]+)\s*(?:ft|huf|eur|usd|€|\$)?/i,
-    /([0-9\s.,]+)\s*(?:ft|huf)\b/i,
+    /(?:végösszeg|total|összesen|grand total|fizetendő)[:\s]*([0-9.,]+(?:\s[0-9.,]+)?)\s*(?:ft|huf|eur|usd|€|\$)?/i,
+    /([0-9.,]+(?:\s[0-9.,]+)?)\s*(?:ft|huf)\b/i,
     /(?:€|\$)\s*([0-9.,]+)/i,
   ];
   for (const p of patterns) {
@@ -152,7 +155,7 @@ function extractItems(text: string): OrderItem[] {
   const items: OrderItem[] = [];
   // Általános terméksor minta: "termék neve | 2 db | 5000 Ft"
   const linePattern =
-    /(.{3,50}?)\s*[|\t]\s*(\d+)\s*(?:db|pcs|x)?\s*[|\t]\s*([0-9.,\s]+)\s*(?:ft|huf|eur)?/gi;
+    /(.{3,50}?)\s*[|\t]\s*(\d+)\s*(?:db|pcs|x)?\s*[|\t]\s*([0-9.,]+)\s*(?:ft|huf|eur)?/gi;
   let m;
   while ((m = linePattern.exec(text)) !== null) {
     const qty = parseInt(m[2]);

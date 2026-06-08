@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { X, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { X, Plus, RotateCcw, Save, Trash2, LogOut } from "lucide-react";
+import { signOut } from "next-auth/react";
 import { toast } from "sonner";
 import { DEFAULT_KEYWORDS, DEFAULT_SENDERS } from "@/lib/gmail-query";
 
@@ -225,6 +226,19 @@ export function SettingsPanel({ initialKeywords, initialSenders }: Props) {
           Visszaállítás alapértelmezettre
         </button>
       </div>
+      {/* Fiók — kijelentkezés (mobilon is elérhető) */}
+      <div className="bg-white rounded-2xl shadow-soft border border-border/50 p-6 space-y-4 md:hidden">
+        <h2 className="font-bold text-[#2A2A2A] text-base">Fiók</h2>
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border transition-all hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+          style={{ color: "#888", borderColor: "#E0E0E0" }}
+        >
+          <LogOut className="w-4 h-4" />
+          Kijelentkezés
+        </button>
+      </div>
+
       {/* Veszélyes műveletek */}
       <div className="bg-white rounded-2xl border-2 p-6 space-y-4" style={{ borderColor: "#FFCDD2" }}>
         <div>
